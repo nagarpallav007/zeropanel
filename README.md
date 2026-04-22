@@ -2,7 +2,7 @@
 
 A lightweight, open-source hosting panel for self-hosters and VPS operators — no web UI, no bloat, just a single `sudo panel` command.
 
-Provision users, nginx vhosts, PHP-FPM versions, Let's Encrypt SSL, and MariaDB databases from the terminal. Built for people who prefer CLI over dashboards and want full control of their server without installing cPanel or Plesk.
+Provision users, nginx vhosts, PHP-FPM, Node.js, Python (WSGI/ASGI), static sites, Let's Encrypt SSL, and MariaDB databases from the terminal. Built for people who prefer CLI over dashboards and want full control of their server without installing cPanel or Plesk.
 
 ---
 
@@ -21,10 +21,11 @@ Provision users, nginx vhosts, PHP-FPM versions, Let's Encrypt SSL, and MariaDB 
 | Stack | Status |
 |---|---|
 | PHP (8.1 – 8.4) via PHP-FPM | ✅ Supported |
-| Node.js | 🔜 Roadmap |
-| Python (WSGI / ASGI) | 🔜 Roadmap |
+| Node.js (systemd + reverse proxy) | ✅ Supported |
+| Python WSGI — Gunicorn | ✅ Supported |
+| Python ASGI — Uvicorn | ✅ Supported |
+| Static sites | ✅ Supported |
 | Go (reverse proxy) | 🔜 Roadmap |
-| Static sites | 🔜 Roadmap |
 
 ---
 
@@ -32,7 +33,10 @@ Provision users, nginx vhosts, PHP-FPM versions, Let's Encrypt SSL, and MariaDB 
 
 - Ubuntu 22.04 / 24.04 (Debian-based)
 - nginx
-- PHP-FPM (any of 8.1, 8.2, 8.3, 8.4)
+- PHP-FPM (any of 8.1, 8.2, 8.3, 8.4) — for PHP sites
+- Node.js — for Node.js sites
+- Gunicorn (`pip install gunicorn`) — for Python WSGI sites
+- Uvicorn (`pip install uvicorn`) — for Python ASGI sites
 - certbot with the nginx plugin
 - MariaDB
 - Python 3.10+
@@ -80,12 +84,29 @@ sudo panel list-users
 ### Sites
 
 ```bash
-sudo panel add-site <username> <domain> [--php 8.2]
+# PHP (default)
+sudo panel add-site <username> <domain>
+sudo panel add-site <username> <domain> --php 8.3
+
+# Node.js — reverse-proxied, managed as a systemd service
+sudo panel add-site <username> <domain> --type node --port 3000
+sudo panel add-site <username> <domain> --type node --port 3000 --entry app.js
+
+# Python WSGI (Gunicorn)
+sudo panel add-site <username> <domain> --type python-wsgi --app myapp:application
+
+# Python ASGI (Uvicorn)
+sudo panel add-site <username> <domain> --type python-asgi --app myapp:app
+
+# Static HTML/CSS/JS — no backend
+sudo panel add-site <username> <domain> --type static
+
+# Manage sites
 sudo panel delete-site <username> <domain> [--purge] [--yes]
 sudo panel list-sites [username]
 sudo panel enable-site <domain>
 sudo panel disable-site <domain>
-sudo panel set-php <domain> <version>
+sudo panel set-php <domain> <version>          # PHP sites only
 ```
 
 ### SSL
@@ -137,10 +158,10 @@ nginx configs live in the standard locations:
 
 ## Roadmap
 
-- [ ] **Node.js sites** — provision via reverse proxy to a user-managed process (PM2 / systemd unit)
-- [ ] **Python sites** — WSGI (Gunicorn) and ASGI (Uvicorn) support with auto-generated systemd services
+- [x] **Node.js sites** — systemd service + nginx reverse proxy
+- [x] **Python WSGI / ASGI** — Gunicorn / Uvicorn with auto-generated systemd services
+- [x] **Static sites** — zero-PHP nginx config for pure HTML/JS/CSS deployments
 - [ ] **Go sites** — reverse proxy to a compiled binary managed as a systemd service
-- [ ] **Static sites** — zero-PHP nginx config for pure HTML/JS/CSS deployments
 - [ ] **Backup command** — `panel backup-site` to tar + compress to `/srv/clients/{user}/backups/`
 - [ ] **Restore command** — `panel restore-site` from a backup archive
 - [ ] **MySQL import** — `panel import-db` from a `.sql` file

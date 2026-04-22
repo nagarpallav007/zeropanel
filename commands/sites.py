@@ -1,5 +1,6 @@
 import re
 from pathlib import Path
+from typing import Optional
 
 import typer
 from rich import print
@@ -7,12 +8,23 @@ from rich.console import Console
 from rich.table import Table
 
 from config import BASE, DEFAULT_PHP, NGINX_AVAIL, NGINX_ENABLED
-from utils.nginx import build_config
-from utils.phpfpm import ensure_pool, per_user_socket, pools_for_user, remove_pool
+from utils.nginx import build_config, build_reverse_proxy_config, build_static_config
+from utils.phpfpm import ensure_pool, per_user_socket, remove_pool
 from utils.shell import _log, run, sudo_chown_r, sudo_mkdir, sudo_write
+from utils.systemd import (
+    build_node_service,
+    build_python_asgi_service,
+    build_python_wsgi_service,
+    install_service,
+    python_socket,
+    remove_service,
+    service_path,
+)
 from utils.validate import validate_domain, validate_php, validate_username
 
 console = Console()
+
+SITE_TYPES = ("php", "node", "python-wsgi", "python-asgi", "static")
 
 
 def _php_installed(version: str) -> bool:
@@ -29,7 +41,6 @@ def _find_user_for_domain(domain: str) -> str | None:
 
 
 def _get_site_php(domain: str) -> str | None:
-    """Read PHP version from the nginx config for a domain."""
     conf = NGINX_AVAIL / f"{domain}.conf"
     if not conf.exists():
         return None
@@ -37,32 +48,56 @@ def _get_site_php(domain: str) -> str | None:
     return m.group(1) if m else None
 
 
+def _read_site_type(username: str, domain: str) -> str:
+    try:
+        return (BASE / username / "sites" / domain / ".sitetype").read_text().strip()
+    except OSError:
+        return "php"
+
+
+def _write_site_type(username: str, domain: str, site_type: str):
+    sudo_write(BASE / username / "sites" / domain / ".sitetype", site_type + "\n")
+
+
 def _cleanup_pool_if_unused(username: str, version: str):
-    """Remove the per-user PHP-FPM pool if no remaining sites for this user use it."""
     sites_dir = BASE / username / "sites"
     if not sites_dir.exists():
         remove_pool(username, version)
         return
-    socket_marker = f"php{version}-fpm-{username}.sock"
+    marker = f"php{version}-fpm-{username}.sock"
     for site_dir in sites_dir.iterdir():
         conf = NGINX_AVAIL / f"{site_dir.name}.conf"
-        if conf.exists() and socket_marker in conf.read_text():
-            return  # another site still uses this pool
+        if conf.exists() and marker in conf.read_text():
+            return
     remove_pool(username, version)
 
 
 def add_site(
     username: str,
     domain: str,
-    php: str = typer.Option(DEFAULT_PHP, help="PHP-FPM version"),
+    type: str = typer.Option("php", "--type", "-t", help=f"Site type: {', '.join(SITE_TYPES)}"),
+    php: str = typer.Option(DEFAULT_PHP, "--php", help="PHP version (php type only)"),
+    port: Optional[int] = typer.Option(None, "--port", help="App port — required for node"),
+    app: Optional[str] = typer.Option(None, "--app", help="WSGI/ASGI app entry point, e.g. myapp:application"),
+    entry: str = typer.Option("server.js", "--entry", help="Node.js entry file"),
 ):
-    """Provision a new site: directories, per-user PHP-FPM pool, nginx vhost, index.php."""
+    """Provision a new site. --type: php (default), node, python-wsgi, python-asgi, static."""
     validate_username(username)
     validate_domain(domain)
-    validate_php(php)
 
-    if not _php_installed(php):
-        print(f"[red]PHP {php}-fpm is not installed (pool dir missing)[/red]")
+    if type not in SITE_TYPES:
+        print(f"[red]Unknown type '{type}'. Choose from: {', '.join(SITE_TYPES)}[/red]")
+        raise typer.Exit(1)
+    if type == "php":
+        validate_php(php)
+        if not _php_installed(php):
+            print(f"[red]PHP {php}-fpm is not installed[/red]")
+            raise typer.Exit(1)
+    if type == "node" and port is None:
+        print("[red]--port is required for node sites[/red]")
+        raise typer.Exit(1)
+    if type in ("python-wsgi", "python-asgi") and app is None:
+        print("[red]--app is required for python sites (e.g. --app myapp:application)[/red]")
         raise typer.Exit(1)
 
     root = BASE / username / "sites" / domain / "public_html"
@@ -70,21 +105,45 @@ def add_site(
 
     sudo_mkdir(root)
     sudo_mkdir(logs)
-    # Chown only the site subdir — top-level user dir stays root:root for ChrootDirectory
-    # Chown only the site subdirectory — BASE/username must stay root:root for ChrootDirectory
     sudo_chown_r(BASE / username / "sites" / domain, username)
+    _write_site_type(username, domain, type)
 
-    index = root / "index.php"
-    if not index.exists():
-        sudo_write(index, "<?php phpinfo();\n", owner=username)
+    if type == "php":
+        ensure_pool(username, php)
+        sock = per_user_socket(username, php)
+        conf_content = build_config(domain, str(root), str(logs), str(sock))
+        index = root / "index.php"
+        if not index.exists():
+            sudo_write(index, "<?php phpinfo();\n", owner=username)
 
-    # Write per-user pool (idempotent) and reload php-fpm
-    ensure_pool(username, php)
-    sock = per_user_socket(username, php)
+    elif type == "static":
+        conf_content = build_static_config(domain, str(root), str(logs))
+        index = root / "index.html"
+        if not index.exists():
+            sudo_write(index, f"<h1>{domain}</h1>\n", owner=username)
 
-    conf = build_config(domain, str(root), str(logs), str(sock))
+    elif type == "node":
+        conf_content = build_reverse_proxy_config(
+            domain, str(root), str(logs), f"http://127.0.0.1:{port}"
+        )
+        install_service(username, domain, build_node_service(username, domain, port, entry))
+
+    elif type == "python-wsgi":
+        sock = python_socket(username, domain)
+        conf_content = build_reverse_proxy_config(
+            domain, str(root), str(logs), f"http://unix:{sock}:"
+        )
+        install_service(username, domain, build_python_wsgi_service(username, domain, app))
+
+    elif type == "python-asgi":
+        sock = python_socket(username, domain)
+        conf_content = build_reverse_proxy_config(
+            domain, str(root), str(logs), f"http://unix:{sock}:"
+        )
+        install_service(username, domain, build_python_asgi_service(username, domain, app))
+
     conf_path = NGINX_AVAIL / f"{domain}.conf"
-    sudo_write(conf_path, conf)
+    sudo_write(conf_path, conf_content)
 
     link = NGINX_ENABLED / f"{domain}.conf"
     if not link.exists():
@@ -93,8 +152,8 @@ def add_site(
     run(["sudo", "nginx", "-t"])
     run(["sudo", "systemctl", "reload", "nginx"])
 
-    _log("add-site", username=username, domain=domain, php=php)
-    print(f"[green]Site ready:[/green] {domain}")
+    _log("add-site", username=username, domain=domain, type=type)
+    print(f"[green]Site ready:[/green] {domain}  ([cyan]{type}[/cyan])")
 
 
 def delete_site(
@@ -103,7 +162,7 @@ def delete_site(
     purge: bool = typer.Option(False, "--purge", help="Also delete site files"),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation"),
 ):
-    """Remove a site's nginx config, optionally deleting all site files."""
+    """Remove a site's nginx config and service, optionally deleting all files."""
     validate_username(username)
     validate_domain(domain)
 
@@ -113,20 +172,22 @@ def delete_site(
             msg += " and purge all files"
         typer.confirm(f"{msg}?", abort=True)
 
-    # Read PHP version before removing the config
     php_ver = _get_site_php(domain)
+    site_type = _read_site_type(username, domain)
+
+    if site_type in ("node", "python-wsgi", "python-asgi"):
+        if service_path(username, domain).exists():
+            remove_service(username, domain)
 
     for path in [NGINX_ENABLED / f"{domain}.conf", NGINX_AVAIL / f"{domain}.conf"]:
         run(["sudo", "rm", "-f", str(path)], check=False)
 
     if purge:
-        site_path = BASE / username / "sites" / domain
-        run(["sudo", "rm", "-rf", str(site_path)], check=False)
+        run(["sudo", "rm", "-rf", str(BASE / username / "sites" / domain)], check=False)
 
     run(["sudo", "systemctl", "reload", "nginx"])
 
-    # Remove pool if no remaining sites for this user use this PHP version
-    if php_ver:
+    if site_type == "php" and php_ver:
         _cleanup_pool_if_unused(username, php_ver)
 
     _log("delete-site", username=username, domain=domain, purge=purge)
@@ -134,7 +195,7 @@ def delete_site(
 
 
 def list_sites(username: str = typer.Argument(None, help="Filter by username")):
-    """List all sites with PHP version, enabled state, and SSL status."""
+    """List all sites with type, detail, enabled state, and SSL status."""
     if not BASE.exists():
         print("[yellow]No clients directory found.[/yellow]")
         return
@@ -144,7 +205,8 @@ def list_sites(username: str = typer.Argument(None, help="Filter by username")):
     table = Table(title="Sites", show_header=True, header_style="bold cyan")
     table.add_column("Domain")
     table.add_column("User")
-    table.add_column("PHP")
+    table.add_column("Type")
+    table.add_column("Detail")
     table.add_column("Enabled")
     table.add_column("SSL")
 
@@ -157,12 +219,21 @@ def list_sites(username: str = typer.Argument(None, help="Filter by username")):
         for site_dir in sorted(sites_dir.iterdir()):
             domain = site_dir.name
             conf_path = NGINX_AVAIL / f"{domain}.conf"
-            php_ver = "?"
+            site_type = _read_site_type(user_dir.name, domain)
+
+            detail = "?"
             if conf_path.exists():
                 text = conf_path.read_text()
-                # Try per-user socket format first, fall back to global
-                m = re.search(r"php(\d+\.\d+)-fpm", text)
-                php_ver = m.group(1) if m else "?"
+                if site_type == "php":
+                    m = re.search(r"php(\d+\.\d+)-fpm", text)
+                    detail = m.group(1) if m else "?"
+                elif site_type == "node":
+                    m = re.search(r"proxy_pass http://127\.0\.0\.1:(\d+)", text)
+                    detail = f":{m.group(1)}" if m else "?"
+                elif site_type in ("python-wsgi", "python-asgi"):
+                    detail = "unix sock"
+                elif site_type == "static":
+                    detail = "—"
 
             enabled = (
                 "[green]yes[/green]"
@@ -171,8 +242,7 @@ def list_sites(username: str = typer.Argument(None, help="Filter by username")):
             )
             cert = Path(f"/etc/letsencrypt/live/{domain}/fullchain.pem")
             ssl = "[green]yes[/green]" if cert.exists() else "[dim]no[/dim]"
-
-            table.add_row(domain, user_dir.name, php_ver, enabled, ssl)
+            table.add_row(domain, user_dir.name, site_type, detail, enabled, ssl)
 
     console.print(table)
 
@@ -180,15 +250,12 @@ def list_sites(username: str = typer.Argument(None, help="Filter by username")):
 def disable_site(domain: str):
     """Disable a site by removing its nginx symlink."""
     validate_domain(domain)
-
     link = NGINX_ENABLED / f"{domain}.conf"
     if not link.exists():
         print(f"[yellow]{domain} is already disabled[/yellow]")
         raise typer.Exit()
-
     run(["sudo", "rm", str(link)])
     run(["sudo", "systemctl", "reload", "nginx"])
-
     _log("disable-site", domain=domain)
     print(f"[yellow]Disabled:[/yellow] {domain}")
 
@@ -196,48 +263,41 @@ def disable_site(domain: str):
 def enable_site(domain: str):
     """Re-enable a site by creating its nginx symlink."""
     validate_domain(domain)
-
     conf = NGINX_AVAIL / f"{domain}.conf"
     if not conf.exists():
         print(f"[red]No config found for {domain}[/red]")
         raise typer.Exit(1)
-
     link = NGINX_ENABLED / f"{domain}.conf"
     if link.exists():
         print(f"[yellow]{domain} is already enabled[/yellow]")
         raise typer.Exit()
-
     run(["sudo", "ln", "-s", str(conf), str(link)])
     run(["sudo", "systemctl", "reload", "nginx"])
-
     _log("enable-site", domain=domain)
     print(f"[green]Enabled:[/green] {domain}")
 
 
 def set_php(domain: str, version: str):
-    """Switch the PHP-FPM version for a site."""
+    """Switch the PHP-FPM version for a PHP site."""
     validate_domain(domain)
     validate_php(version)
-
     conf = NGINX_AVAIL / f"{domain}.conf"
     if not conf.exists():
         print("[red]Site config not found[/red]")
         raise typer.Exit(1)
-
     if not _php_installed(version):
         print(f"[red]PHP {version}-fpm is not installed[/red]")
         raise typer.Exit(1)
-
     username = _find_user_for_domain(domain)
     if not username:
         print(f"[red]Cannot find owner for domain {domain}[/red]")
         raise typer.Exit(1)
-
+    if _read_site_type(username, domain) != "php":
+        print(f"[red]{domain} is not a PHP site[/red]")
+        raise typer.Exit(1)
     old_version = _get_site_php(domain)
-
     ensure_pool(username, version)
     new_sock = per_user_socket(username, version)
-
     text = conf.read_text()
     text = re.sub(
         r"php\d+\.\d+-fpm-\w+\.sock|php\d+\.\d+-fpm\.sock",
@@ -245,12 +305,9 @@ def set_php(domain: str, version: str):
         text,
     )
     sudo_write(conf, text)
-
     run(["sudo", "nginx", "-t"])
     run(["sudo", "systemctl", "reload", "nginx"])
-
     if old_version and old_version != version:
         _cleanup_pool_if_unused(username, old_version)
-
     _log("set-php", domain=domain, version=version)
     print(f"[green]{domain} now uses PHP {version}[/green]")
