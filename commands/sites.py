@@ -71,6 +71,7 @@ def add_site(
     sudo_mkdir(root)
     sudo_mkdir(logs)
     # Chown only the site subdir — top-level user dir stays root:root for ChrootDirectory
+    # Chown only the site subdirectory — BASE/username must stay root:root for ChrootDirectory
     sudo_chown_r(BASE / username / "sites" / domain, username)
 
     index = root / "index.php"

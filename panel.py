@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import typer
 
-from commands import database, logs, sites, ssl, users
+from commands import database, logs, server, sites, ssl, users
 
 app = typer.Typer(name="panel", help="Hosting panel — manage users, sites, SSL, and databases.")
 
@@ -28,6 +28,9 @@ app.command("list-dbs")(database.list_dbs)
 
 # Logs
 app.command("logs")(logs.logs)
+
+# Server bootstrap
+app.command("init-server")(server.init_server)
 
 if __name__ == "__main__":
     app()

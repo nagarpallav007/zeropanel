@@ -1,0 +1,16 @@
+#!/bin/bash
+# Whitelist of commands available to dev-tier SSH users.
+# Interactive shell access is never granted.
+ALLOWED_RE='^(php[0-9.]*|composer|git|ls|pwd|mkdir|cp|mv|rm|nano|vim|unzip|tar|wget|curl)( .*)?$'
+
+if [[ -z "$SSH_ORIGINAL_COMMAND" ]]; then
+    echo "Interactive shells are not permitted on this server."
+    exit 1
+fi
+
+if [[ "$SSH_ORIGINAL_COMMAND" =~ $ALLOWED_RE ]]; then
+    cd "/srv/clients/$(id -un)" && exec /bin/bash -c "$SSH_ORIGINAL_COMMAND"
+else
+    echo "Command not permitted: $SSH_ORIGINAL_COMMAND"
+    exit 1
+fi
