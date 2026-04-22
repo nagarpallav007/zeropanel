@@ -5,8 +5,10 @@ from rich import print
 from rich.console import Console
 from rich.table import Table
 
-from config import BASE, NGINX_AVAIL, NGINX_ENABLED
+from config import BASE, DEFAULT_QUOTA, NGINX_AVAIL, NGINX_ENABLED
+from utils.phpfpm import pools_for_user, remove_pool
 from utils.shell import _log, run, sudo_chown_r, sudo_mkdir
+from utils.system import remove_quota, set_quota
 from utils.validate import validate_username
 
 console = Console()
@@ -17,6 +19,11 @@ def create_user(
     password: str = typer.Option(
         ..., prompt=True, hide_input=True, confirmation_prompt=True
     ),
+    quota: str = typer.Option(
+        DEFAULT_QUOTA,
+        "--quota",
+        help="Disk quota soft limit (e.g. 1G, 500M). Hard limit = soft + 20%.",
+    ),
 ):
     """Create a system user and provision their home directory."""
     validate_username(username)
@@ -25,7 +32,6 @@ def create_user(
     if result.returncode != 0:
         run(["sudo", "useradd", "-m", "-s", "/bin/bash", username])
 
-    # Pass password via stdin — never via shell string interpolation
     subprocess.run(
         ["sudo", "chpasswd"],
         input=f"{username}:{password}\n",
@@ -35,10 +41,16 @@ def create_user(
 
     sudo_mkdir(BASE / username / "sites")
     sudo_mkdir(BASE / username / "backups")
-    sudo_chown_r(BASE / username, username)
+    # Top-level dir stays root:root 755 for ChrootDirectory compatibility
+    run(["sudo", "chown", "root:root", str(BASE / username)])
+    run(["sudo", "chmod", "755", str(BASE / username)])
+    sudo_chown_r(BASE / username / "sites", username)
+    sudo_chown_r(BASE / username / "backups", username)
 
-    _log("create-user", username=username)
-    print(f"[green]User ready:[/green] {username}")
+    set_quota(username, quota)
+
+    _log("create-user", username=username, quota=quota)
+    print(f"[green]User ready:[/green] {username}  quota={quota}")
 
 
 def delete_user(
@@ -55,7 +67,12 @@ def delete_user(
             msg += " and purge all files + nginx configs"
         typer.confirm(f"{msg}?", abort=True)
 
+    # Remove all PHP-FPM pools before userdel
+    for version, _ in pools_for_user(username):
+        remove_pool(username, version)
+
     run(["sudo", "userdel", "-r", username], check=False)
+    remove_quota(username)
 
     if purge:
         user_path = BASE / username
