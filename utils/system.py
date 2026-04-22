@@ -171,18 +171,39 @@ def _parse_size_to_kb(size: str) -> int:
     return int(s)
 
 
+def quotas_enabled(filesystem: str = QUOTA_FILESYSTEM) -> bool:
+    """Return True if user quotas are active on the given filesystem."""
+    result = subprocess.run(
+        ["sudo", "quotaon", "-p", filesystem],
+        capture_output=True, text=True,
+    )
+    return result.returncode == 0 and "user quota on" in result.stdout.lower()
+
+
 def set_quota(username: str, soft: str, filesystem: str = QUOTA_FILESYSTEM):
-    """Set disk quota. Hard limit = soft + 20%."""
+    """Set disk quota. Hard limit = soft + 20%. Silently skips if quotas are not enabled."""
+    from rich import print as rprint
+    if not quotas_enabled(filesystem):
+        rprint(
+            f"[yellow]⚠  Disk quotas not active on {filesystem} — skipping quota for {username}.[/yellow]\n"
+            "[dim]   Run [bold]sudo panel enable-quotas[/bold] to configure filesystem quotas.[/dim]"
+        )
+        return
     soft_kb = _parse_size_to_kb(soft)
     hard_kb = int(soft_kb * 1.2)
-    run([
-        "sudo", "setquota", "-u", username,
-        str(soft_kb), str(hard_kb), "0", "0", filesystem,
-    ])
+    try:
+        run([
+            "sudo", "setquota", "-u", username,
+            str(soft_kb), str(hard_kb), "0", "0", filesystem,
+        ])
+    except Exception:
+        rprint(f"[yellow]⚠  Could not set quota for {username} — continuing without quota.[/yellow]")
 
 
 def remove_quota(username: str, filesystem: str = QUOTA_FILESYSTEM):
-    """Remove disk quota for a user."""
+    """Remove disk quota for a user. No-op if quotas are not enabled."""
+    if not quotas_enabled(filesystem):
+        return
     run(
         ["sudo", "setquota", "-u", username, "0", "0", "0", "0", filesystem],
         check=False,

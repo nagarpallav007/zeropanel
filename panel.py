@@ -31,6 +31,8 @@ app.command("logs")(logs.logs)
 
 # Server bootstrap
 app.command("init-server")(server.init_server)
+app.command("setup-server")(server.setup_server)
+app.command("enable-quotas")(server.enable_quotas)
 
 if __name__ == "__main__":
     app()
