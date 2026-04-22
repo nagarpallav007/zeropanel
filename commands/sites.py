@@ -38,7 +38,8 @@ def add_site(
 
     sudo_mkdir(root)
     sudo_mkdir(logs)
-    sudo_chown_r(BASE / username, username)
+    # Chown only the site subdirectory — BASE/username must stay root:root for ChrootDirectory
+    sudo_chown_r(BASE / username / "sites" / domain, username)
 
     index = root / "index.php"
     if not index.exists():

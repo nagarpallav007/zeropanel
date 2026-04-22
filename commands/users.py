@@ -5,11 +5,30 @@ from rich import print
 from rich.console import Console
 from rich.table import Table
 
-from config import BASE, NGINX_AVAIL, NGINX_ENABLED
+from config import BASE, DEV_GROUP, NGINX_AVAIL, NGINX_ENABLED, SFTP_GROUP
 from utils.shell import _log, run, sudo_chown_r, sudo_mkdir
+from utils.system import (
+    add_to_cron_deny,
+    bootstrap,
+    remove_from_cron_deny,
+    remove_limits,
+    write_limits,
+)
 from utils.validate import validate_username
 
 console = Console()
+
+
+def _user_tier(username: str) -> str:
+    result = subprocess.run(
+        ["id", "-Gn", username], capture_output=True, text=True
+    )
+    groups = result.stdout.split()
+    if DEV_GROUP in groups:
+        return "dev"
+    if SFTP_GROUP in groups:
+        return "sftp"
+    return "unknown"
 
 
 def create_user(
@@ -17,15 +36,24 @@ def create_user(
     password: str = typer.Option(
         ..., prompt=True, hide_input=True, confirmation_prompt=True
     ),
+    dev: bool = typer.Option(
+        False, "--dev", help="Grant restricted SSH command access (php, composer, git)"
+    ),
 ):
-    """Create a system user and provision their home directory."""
+    """Create a system user. Default: SFTP-only jail. Use --dev for restricted SSH."""
     validate_username(username)
+    bootstrap()
+
+    shell = "/bin/bash" if dev else "/usr/sbin/nologin"
+    group = DEV_GROUP if dev else SFTP_GROUP
 
     result = subprocess.run(["id", username], capture_output=True)
     if result.returncode != 0:
-        run(["sudo", "useradd", "-m", "-s", "/bin/bash", username])
+        run(["sudo", "useradd", "-m", "-s", shell, "-G", group, username])
+    else:
+        # User exists — ensure they're in the right group
+        run(["sudo", "usermod", "-s", shell, "-aG", group, username])
 
-    # Pass password via stdin — never via shell string interpolation
     subprocess.run(
         ["sudo", "chpasswd"],
         input=f"{username}:{password}\n",
@@ -35,10 +63,19 @@ def create_user(
 
     sudo_mkdir(BASE / username / "sites")
     sudo_mkdir(BASE / username / "backups")
-    sudo_chown_r(BASE / username, username)
 
-    _log("create-user", username=username)
-    print(f"[green]User ready:[/green] {username}")
+    # ChrootDirectory requires the top-level dir to be root:root 755
+    run(["sudo", "chown", "root:root", str(BASE / username)])
+    run(["sudo", "chmod", "755", str(BASE / username)])
+    sudo_chown_r(BASE / username / "sites", username)
+    sudo_chown_r(BASE / username / "backups", username)
+
+    add_to_cron_deny(username)
+    write_limits(username)
+
+    tier_label = "[yellow]dev (restricted SSH)[/yellow]" if dev else "[cyan]sftp-only[/cyan]"
+    _log("create-user", username=username, tier="dev" if dev else "sftp")
+    print(f"[green]User ready:[/green] {username}  tier={tier_label}")
 
 
 def delete_user(
@@ -56,6 +93,8 @@ def delete_user(
         typer.confirm(f"{msg}?", abort=True)
 
     run(["sudo", "userdel", "-r", username], check=False)
+    remove_from_cron_deny(username)
+    remove_limits(username)
 
     if purge:
         user_path = BASE / username
@@ -77,13 +116,14 @@ def delete_user(
 
 
 def list_users():
-    """List all provisioned users with their site count and disk usage."""
+    """List all provisioned users with tier, site count, and disk usage."""
     if not BASE.exists():
         print("[yellow]No clients directory found.[/yellow]")
         return
 
     table = Table(title="Users", show_header=True, header_style="bold cyan")
     table.add_column("Username")
+    table.add_column("Tier")
     table.add_column("Sites", justify="right")
     table.add_column("Disk Usage", justify="right")
 
@@ -98,6 +138,7 @@ def list_users():
             text=True,
         )
         disk = result.stdout.split()[0] if result.returncode == 0 else "?"
-        table.add_row(user_dir.name, str(site_count), disk)
+        tier = _user_tier(user_dir.name)
+        table.add_row(user_dir.name, tier, str(site_count), disk)
 
     console.print(table)
