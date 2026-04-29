@@ -179,7 +179,9 @@ def quotas_enabled(filesystem: str = QUOTA_FILESYSTEM) -> bool:
         ["sudo", "quotaon", "-p", filesystem],
         capture_output=True, text=True,
     )
-    return result.returncode == 0 and "user quota on" in result.stdout.lower()
+    combined = (result.stdout + result.stderr).lower()
+    # "user quota on" = active; "device or resource busy" = already on
+    return "user quota on" in combined or "device or resource busy" in combined
 
 
 def set_quota(username: str, soft: str, filesystem: str = QUOTA_FILESYSTEM):

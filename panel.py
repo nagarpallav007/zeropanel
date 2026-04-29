@@ -3,7 +3,11 @@ import typer
 
 from commands import database, logs, server, sites, ssl, users
 
-app = typer.Typer(name="panel", help="Hosting panel — manage users, sites, SSL, and databases.")
+app = typer.Typer(
+    name="panel",
+    help="Hosting panel — manage users, sites, SSL, and databases.",
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
 
 # User management
 app.command("create-user")(users.create_user)

@@ -139,10 +139,9 @@ def enable_quotas(
         )
         return
 
-    try:
-        subprocess.run(["sudo", "quotaon", filesystem], check=True)
-        print(f"[green]✔ Quotas active on {filesystem}[/green]")
-    except subprocess.CalledProcessError:
+    result = subprocess.run(["sudo", "quotaon", filesystem], capture_output=True, text=True)
+    combined = (result.stdout + result.stderr).lower()
+    if result.returncode != 0 and "device or resource busy" not in combined:
         print("[yellow]⚠  quotaon failed — try rebooting and re-running this command.[/yellow]")
         return
 
