@@ -123,8 +123,12 @@ def enable_quotas(
             "[dim]   Safe to reboot; fstab has been updated.[/dim]"
         )
 
+    if quotas_enabled(filesystem):
+        print("\n[bold green]Disk quotas are now active.[/bold green]")
+        return
+
     try:
-        subprocess.run(["sudo", "quotacheck", "-cum", filesystem], check=True)
+        subprocess.run(["sudo", "quotacheck", "-cumf", filesystem], check=True)
         print("[green]✔ quotacheck passed[/green]")
     except subprocess.CalledProcessError:
         print(

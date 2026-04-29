@@ -32,7 +32,8 @@ Match Group dev-users
 
 _RESTRICTED_SHELL = """\
 #!/bin/bash
-ALLOWED_RE='^(php[0-9.]*|composer|git|ls|pwd|mkdir|cp|mv|rm|nano|vim|unzip|tar|wget|curl)( .*)?$'
+# Allowed: website tooling only. No editors, no network tools.
+ALLOWED_RE='^(php[0-9.]*|composer|git|ls|pwd|mkdir|cp|mv|rm|unzip|tar)( .*)?$'
 
 if [[ -z "$SSH_ORIGINAL_COMMAND" ]]; then
     echo "Interactive shells are not permitted on this server."
@@ -40,7 +41,9 @@ if [[ -z "$SSH_ORIGINAL_COMMAND" ]]; then
 fi
 
 if [[ "$SSH_ORIGINAL_COMMAND" =~ $ALLOWED_RE ]]; then
-    cd "/srv/clients/$(id -un)" && exec /bin/bash -c "$SSH_ORIGINAL_COMMAND"
+    cd "/srv/clients/$(id -un)" || exit 1
+    read -ra CMD <<< "$SSH_ORIGINAL_COMMAND"
+    exec "${CMD[@]}"
 else
     echo "Command not permitted: $SSH_ORIGINAL_COMMAND"
     exit 1
@@ -64,11 +67,10 @@ def ensure_sshd_config():
 
 
 def ensure_restricted_shell():
-    if not RESTRICTED_SHELL.exists():
-        run(["sudo", "mkdir", "-p", str(RESTRICTED_SHELL.parent)])
-        sudo_write(RESTRICTED_SHELL, _RESTRICTED_SHELL)
-        run(["sudo", "chmod", "755", str(RESTRICTED_SHELL)])
-        run(["sudo", "chown", "root:root", str(RESTRICTED_SHELL)])
+    run(["sudo", "mkdir", "-p", str(RESTRICTED_SHELL.parent)])
+    sudo_write(RESTRICTED_SHELL, _RESTRICTED_SHELL)
+    run(["sudo", "chmod", "755", str(RESTRICTED_SHELL)])
+    run(["sudo", "chown", "root:root", str(RESTRICTED_SHELL)])
 
 
 def bootstrap():
