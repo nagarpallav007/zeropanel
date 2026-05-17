@@ -38,7 +38,6 @@ EnvironmentFile=/opt/panel/.web.env
 ExecStart=/opt/panel/venv/bin/uvicorn web.app:app --host 127.0.0.1 --port 8000 --workers 1
 Restart=on-failure
 RestartSec=5
-NoNewPrivileges=yes
 
 [Install]
 WantedBy=multi-user.target

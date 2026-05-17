@@ -132,6 +132,22 @@ async def make_dir(body: MkdirIn, username: str = Depends(get_current_user)):
     return {"ok": True}
 
 
+class RenameIn(BaseModel):
+    from_path: str
+    to_path: str
+
+
+@router.post("/files/rename")
+async def rename_file(body: RenameIn, username: str = Depends(get_current_user)):
+    src  = _safe(username, body.from_path)
+    dest = _safe(username, body.to_path)
+    code, err = _sudo_exec(username, "mv", str(src), str(dest))
+    if code != 0:
+        raise HTTPException(500, f"Rename failed: {err}")
+    await log_action(username, "file_rename", f"{body.from_path} → {body.to_path}")
+    return {"ok": True}
+
+
 @router.delete("/files")
 async def delete_file(path: str, username: str = Depends(get_current_user)):
     target = _safe(username, path)

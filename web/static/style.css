@@ -104,4 +104,7 @@ button:hover { border-color: var(--accent); color: var(--accent); }
 #ctx-delete { color: var(--red); }
 #ctx-delete:hover { background: rgba(248,81,73,.1) !important; }
 
+/* Keep the raw textarea hidden — CodeMirror manages its own DOM element */
+#codemirror-target { display: none !important; }
+
 .hidden { display: none !important; }

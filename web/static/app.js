@@ -163,7 +163,6 @@ async function openFile(path) {
     hide('editor-placeholder');
 
     const ta = $('codemirror-target');
-    ta.style.display = '';
 
     if (S.editor) {
       S.editor.setValue(content);
@@ -318,8 +317,11 @@ function showCtxMenu(ev, path, type) {
   menu.style.left = ev.pageX + 'px';
   menu.style.top  = ev.pageY + 'px';
   menu.classList.remove('hidden');
-  $('ctx-open').style.display     = type === 'file' ? '' : 'none';
-  $('ctx-download').style.display = type === 'file' ? '' : 'none';
+  const isFile = type === 'file';
+  const isZip  = isFile && path.toLowerCase().endsWith('.zip');
+  $('ctx-open').style.display     = isFile ? '' : 'none';
+  $('ctx-download').style.display = isFile ? '' : 'none';
+  $('ctx-extract').style.display  = isZip  ? '' : 'none';
 }
 
 function hideCtxMenu() { $('context-menu').classList.add('hidden'); }
@@ -353,6 +355,13 @@ function init() {
   // File tree toolbar
   $('upload-btn').onclick       = () => $('upload-input').click();
   $('refresh-tree-btn').onclick = () => loadTree();
+  $('newfile-btn').onclick = async () => {
+    const name = prompt('New file name:');
+    if (!name) return;
+    const path = S.treePath ? S.treePath + '/' + name : name;
+    try { await api('POST', '/api/files/write', { path, content: '' }); await loadTree(); openFile(path); }
+    catch (e) { alert(e.message); }
+  };
   $('mkdir-btn').onclick = async () => {
     const name = prompt('New folder name:');
     if (!name) return;
@@ -405,6 +414,27 @@ function init() {
   document.addEventListener('click', hideCtxMenu);
   $('ctx-open').onclick     = () => { if (S.ctxTarget) openFile(S.ctxTarget.path); hideCtxMenu(); };
   $('ctx-download').onclick = () => { if (S.ctxTarget) downloadFile(S.ctxTarget.path); hideCtxMenu(); };
+  $('ctx-rename').onclick   = async () => {
+    if (!S.ctxTarget) { hideCtxMenu(); return; }
+    const oldName = S.ctxTarget.path.split('/').pop();
+    const newName = prompt('Rename to:', oldName);
+    if (!newName || newName === oldName) { hideCtxMenu(); return; }
+    const dir     = S.ctxTarget.path.split('/').slice(0, -1).join('/');
+    const to_path = dir ? dir + '/' + newName : newName;
+    try {
+      await api('POST', '/api/files/rename', { from_path: S.ctxTarget.path, to_path });
+      if (S.openFile === S.ctxTarget.path) { S.openFile = to_path; $('editor-filename').textContent = to_path; }
+      loadTree();
+    } catch (e) { alert(e.message); }
+    hideCtxMenu();
+  };
+  $('ctx-extract').onclick  = () => {
+    if (!S.ctxTarget) { hideCtxMenu(); return; }
+    const fname = S.ctxTarget.path.split('/').pop();
+    activateTab('terminal');
+    sendCommand('unzip -o ' + fname);
+    hideCtxMenu();
+  };
   $('ctx-delete').onclick   = async () => {
     if (!S.ctxTarget || S.ctxTarget.type !== 'file') { hideCtxMenu(); return; }
     if (!confirm(`Delete ${S.ctxTarget.path}?`)) { hideCtxMenu(); return; }
