@@ -11,6 +11,7 @@ const S = {
   configMode: null,  // null | {type:'nginx'|'phpfpm', site} — system config open in editor
   editor: null,      // CodeMirror instance
   editorDirty: false,
+  _openToken: 0,     // increments on each openFile call; stale async responses are discarded
   ws: null,          // terminal WebSocket
   logTimer: null,
   ctxTarget: null,   // path that was right-clicked
@@ -152,6 +153,12 @@ function fileIcon(name) {
 }
 
 // ── Editor ────────────────────────────────────────────────────────────────────
+function _editorOnChange() {
+  S.editorDirty = true;
+  const cur = $('editor-filename').textContent;
+  if (!cur.startsWith('● ')) $('editor-filename').textContent = '● ' + cur;
+}
+
 function openInEditor(content, label, mode) {
   S.openFile    = null;
   S.configMode  = null;   // caller sets this after calling us
@@ -175,10 +182,7 @@ function openInEditor(content, label, mode) {
       lineWrapping: false,
       autofocus: true,
     });
-    S.editor.on('change', () => {
-      S.editorDirty = true;
-      $('editor-filename').textContent = '● ' + label;
-    });
+    S.editor.on('change', _editorOnChange);
   }
   document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('active'));
   activateTab('editor');
@@ -186,8 +190,11 @@ function openInEditor(content, label, mode) {
 
 async function openFile(path) {
   S.configMode = null;
+  const token = ++S._openToken;
   try {
     const { content } = await api('GET', `/api/files/read?path=${encodeURIComponent(path)}`);
+    if (token !== S._openToken) return; // discard stale response from a superseded click
+
     S.openFile = path;
     S.editorDirty = false;
 
@@ -196,13 +203,11 @@ async function openFile(path) {
     show('save-btn', 'download-btn');
     hide('editor-placeholder');
 
-    const ta = $('codemirror-target');
-
     if (S.editor) {
       S.editor.setValue(content);
       S.editor.setOption('mode', modeForFile(fname));
     } else {
-      S.editor = CodeMirror.fromTextArea(ta, {
+      S.editor = CodeMirror.fromTextArea($('codemirror-target'), {
         value: content,
         mode: modeForFile(fname),
         theme: 'dracula',
@@ -214,47 +219,55 @@ async function openFile(path) {
         lineWrapping: false,
         autofocus: true,
       });
-      S.editor.on('change', () => {
-        S.editorDirty = true;
-        const fname = (S.openFile || '').split('/').pop();
-        $('editor-filename').textContent = '● ' + (S.openFile || '');
-      });
+      S.editor.on('change', _editorOnChange);
     }
 
-    // Mark active in tree
     document.querySelectorAll('.tree-item').forEach(el => {
       el.classList.toggle('active', el.dataset.path === path);
     });
 
-    // Switch to editor tab
     activateTab('editor');
   } catch (e) {
-    alert('Cannot open file: ' + e.message);
+    if (token === S._openToken) alert('Cannot open file: ' + e.message);
   }
 }
 
 async function saveFile() {
   if (!S.editor) return;
   const content = S.editor.getValue();
+  const btn = $('save-btn');
+
+  btn.textContent = 'Saving…';
+  btn.disabled = true;
+
+  function _saveOk() {
+    S.editorDirty = false;
+    $('editor-filename').textContent = $('editor-filename').textContent.replace(/^● /, '');
+    btn.textContent = 'Saved ✓';
+    setTimeout(() => { btn.textContent = 'Save'; btn.disabled = false; }, 2000);
+  }
+  function _saveErr(msg) {
+    btn.textContent = 'Save';
+    btn.disabled = false;
+    alert(msg);
+  }
 
   if (S.configMode) {
     try {
       await api('POST', '/api/config', { type: S.configMode.type, site: S.configMode.site, content });
-      S.editorDirty = false;
-      $('editor-filename').textContent = $('editor-filename').textContent.replace(/^● /, '');
+      _saveOk();
     } catch (e) {
-      alert('Save failed (config restored if invalid):\n' + e.message);
+      _saveErr('Save failed (config restored if invalid):\n' + e.message);
     }
     return;
   }
 
-  if (!S.openFile) return;
+  if (!S.openFile) { btn.textContent = 'Save'; btn.disabled = false; return; }
   try {
     await api('POST', '/api/files/write', { path: S.openFile, content });
-    S.editorDirty = false;
-    $('editor-filename').textContent = S.openFile;
+    _saveOk();
   } catch (e) {
-    alert('Save failed: ' + e.message);
+    _saveErr('Save failed: ' + e.message);
   }
 }
 

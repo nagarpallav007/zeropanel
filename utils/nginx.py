@@ -7,10 +7,8 @@ def set_limit(conf_path: Path, size: str):
     from utils.shell import sudo_write
     text = conf_path.read_text()
     if re.search(r"client_max_body_size\s+\S+;", text):
-        # Replace every occurrence — handles certbot multi-block configs
         text = re.sub(r"client_max_body_size\s+\S+;", f"client_max_body_size {size};", text)
     else:
-        # Not present at all — insert after every server_name line
         text = re.sub(
             r"([ \t]*server_name\s+[^;]+;)",
             rf"\1\n    client_max_body_size {size};",
@@ -34,14 +32,38 @@ def build_config(domain: str, root: str, logs: str, sock: str) -> str:
     access_log {logs}/access.log;
     error_log  {logs}/error.log;
 
-    add_header X-Frame-Options "SAMEORIGIN";
-    add_header X-Content-Type-Options "nosniff";
-    add_header X-XSS-Protection "1; mode=block";
-    add_header Referrer-Policy "strict-origin-when-cross-origin";
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
     gzip on;
     gzip_vary on;
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+    gzip_min_length 1000;
+    gzip_types text/plain text/css application/json application/javascript
+               text/xml application/xml application/xml+rss text/javascript
+               image/svg+xml font/woff2;
+
+    # Block dot-files: .env, .git, .htaccess, etc. — allow .well-known for SSL renewal
+    location ~ /\\.(?!well-known) {{
+        deny all;
+    }}
+
+    # Block sensitive file types from direct access
+    location ~* \\.(env|log|sql|bak|sh|bash|key|pem)$ {{
+        deny all;
+    }}
+
+    # Block project metadata files
+    location ~* ^/(composer\\.(json|lock)|package(-lock)?\\.json|yarn\\.lock|\\.gitignore|Makefile|Dockerfile)$ {{
+        deny all;
+    }}
+
+    # Static asset caching
+    location ~* \\.(jpg|jpeg|png|gif|ico|webp|svg|woff|woff2|ttf|css|js)$ {{
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }}
 
     location / {{
         try_files $uri $uri/ /index.php?$query_string;
@@ -51,11 +73,8 @@ def build_config(domain: str, root: str, logs: str, sock: str) -> str:
         include snippets/fastcgi-php.conf;
         fastcgi_pass unix:{sock};
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-    }}
-
-    # Block all dot-files (.env, .git, .htaccess, etc.) — allow .well-known for SSL renewal
-    location ~ /\\.(?!well-known) {{
-        deny all;
+        fastcgi_hide_header X-Powered-By;
+        fastcgi_read_timeout 300;
     }}
 }}
 """

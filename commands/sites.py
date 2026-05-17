@@ -214,6 +214,56 @@ def enable_site(domain: str):
     print(f"[green]Enabled:[/green] {domain}")
 
 
+def harden_site(domain: str):
+    """Apply production security rules to an existing site's nginx vhost."""
+    validate_domain(domain)
+
+    conf = NGINX_AVAIL / f"{domain}.conf"
+    if not conf.exists():
+        print(f"[red]No nginx config found for {domain}[/red]")
+        raise typer.Exit(1)
+
+    text = conf.read_text()
+
+    # 1. Upgrade /\.ht block → /\.(?!well-known) if not already done
+    if r"/\.(?!well-known)" not in text:
+        text = re.sub(r"location\s*~\s*/\\\.ht[^\{]*\{", r"location ~ /\\.(?!well-known) {", text)
+        # If old block wasn't there at all, inject before first location block
+        if r"/\.(?!well-known)" not in text:
+            text = re.sub(
+                r"(    location\s*/\s*\{)",
+                "    location ~ /\\.(?!well-known) {\n        deny all;\n    }\n\n    \\1",
+                text, count=1,
+            )
+
+    # 2. Add sensitive file-type block if missing
+    if "deny all;" in text and r"\.(env|log|sql" not in text:
+        text = re.sub(
+            r"(    location ~ /\\\.)",
+            r'    location ~* \.(env|log|sql|bak|sh|bash|key|pem)$ {\n        deny all;\n    }\n\n    \1',
+            text, count=1,
+        )
+
+    # 3. Add fastcgi_hide_header if missing
+    if "fastcgi_hide_header" not in text:
+        text = text.replace(
+            "fastcgi_param SCRIPT_FILENAME",
+            "fastcgi_param SCRIPT_FILENAME",
+        )
+        text = re.sub(
+            r"(fastcgi_param SCRIPT_FILENAME[^\n]+\n)",
+            r"\1        fastcgi_hide_header X-Powered-By;\n",
+            text,
+        )
+
+    sudo_write(conf, text)
+    run(["sudo", "nginx", "-t"])
+    run(["sudo", "systemctl", "reload", "nginx"])
+
+    _log("harden-site", domain=domain)
+    print(f"[green]Hardened:[/green] {domain}")
+
+
 def set_upload_limit(
     username: str,
     domain: str,
