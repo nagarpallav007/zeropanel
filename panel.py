@@ -38,6 +38,7 @@ app.command("logs")(logs.logs)
 # Optional services
 app.command("install-phpmyadmin")(extras.install_phpmyadmin)
 app.command("activate-web")(webpanel.activate_web)
+app.command("set-panel-limit")(webpanel.set_panel_limit)
 
 # Server bootstrap
 app.command("init-server")(server.init_server)

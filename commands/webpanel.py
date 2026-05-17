@@ -1,3 +1,4 @@
+import re
 import secrets
 import subprocess
 import tempfile
@@ -7,6 +8,7 @@ import typer
 from rich import print
 
 from utils.deps import _dpkg_installed, apt_update
+from utils.nginx import set_limit
 from utils.shell import run, sudo_write
 
 _VENV_PIP  = Path("/opt/panel/venv/bin/pip")
@@ -64,6 +66,23 @@ server {{
     }}
 }}
 """
+
+
+def set_panel_limit(
+    size: str = typer.Argument("1G", help="Upload size limit e.g. 64M, 256M, 1G"),
+):
+    """Set client_max_body_size in the zeropanel nginx vhost (survives certbot rewrites)."""
+    if not re.match(r"^\d+(K|M|G)$", size, re.IGNORECASE):
+        print(f"[red]Invalid size: '{size}'. Use e.g. 64M, 256M, 1G[/red]")
+        raise typer.Exit(1)
+    size = size.upper()
+    if not _NGINX_AVAIL.exists():
+        print("[red]zeropanel nginx vhost not found — run panel activate-web first.[/red]")
+        raise typer.Exit(1)
+    set_limit(_NGINX_AVAIL, size)
+    run(["sudo", "nginx", "-t"])
+    run(["sudo", "nginx", "-s", "reload"])
+    print(f"[green]Panel upload limit set to {size}[/green]")
 
 
 def activate_web(
