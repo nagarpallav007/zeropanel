@@ -1,3 +1,24 @@
+import re
+from pathlib import Path
+
+
+def set_limit(conf_path: Path, size: str):
+    """Set client_max_body_size in every server block of an nginx config. Idempotent."""
+    from utils.shell import sudo_write
+    text = conf_path.read_text()
+    if re.search(r"client_max_body_size\s+\S+;", text):
+        # Replace every occurrence — handles certbot multi-block configs
+        text = re.sub(r"client_max_body_size\s+\S+;", f"client_max_body_size {size};", text)
+    else:
+        # Not present at all — insert after every server_name line
+        text = re.sub(
+            r"([ \t]*server_name\s+[^;]+;)",
+            rf"\1\n    client_max_body_size {size};",
+            text,
+        )
+    sudo_write(conf_path, text)
+
+
 def build_config(domain: str, root: str, logs: str, sock: str) -> str:
     return f"""server {{
     listen 80;

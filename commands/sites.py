@@ -7,7 +7,7 @@ from rich.console import Console
 from rich.table import Table
 
 from config import BASE, DEFAULT_PHP, NGINX_AVAIL, NGINX_ENABLED
-from utils.nginx import build_config
+from utils.nginx import build_config, set_limit
 from utils.phpfpm import ensure_pool, per_user_socket, pools_for_user, remove_pool
 from utils.shell import _log, run, sudo_chown_r, sudo_mkdir, sudo_write
 from utils.validate import validate_domain, validate_php, validate_username
@@ -235,12 +235,7 @@ def set_upload_limit(
         print(f"[red]No nginx config found for {domain}[/red]")
         raise typer.Exit(1)
 
-    text = conf.read_text()
-    if re.search(r"client_max_body_size\s+\S+;", text):
-        text = re.sub(r"client_max_body_size\s+\S+;", f"client_max_body_size {size};", text)
-    else:
-        text = text.replace("server {\n", f"server {{\n    client_max_body_size {size};\n", 1)
-    sudo_write(conf, text)
+    set_limit(conf, size)
 
     # ── PHP-FPM pool ─────────────────────────────────────────────────────────
     from utils.phpfpm import pool_path as _pool_path
