@@ -1,2 +1,11 @@
 typer[all]>=0.12
 rich>=13
+
+# Web panel (installed on-demand by `panel activate-web`)
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-pam>=2.0
+python-jose[cryptography]>=3.3
+aiofiles>=23.0
+python-multipart>=0.0.9
+aiosqlite>=0.20

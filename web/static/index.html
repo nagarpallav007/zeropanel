@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>zeropanel</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<!-- ── Login ─────────────────────────────────────────────────────────── -->
+<div id="login-screen">
+  <div class="login-card">
+    <h1>zeropanel</h1>
+    <p>Sign in with your system credentials</p>
+    <form id="login-form">
+      <input type="text"     id="login-username" placeholder="Username" autocomplete="username" required>
+      <input type="password" id="login-password" placeholder="Password" autocomplete="current-password" required>
+      <button type="submit">Sign in</button>
+      <p id="login-error" class="error"></p>
+    </form>
+  </div>
+</div>
+
+<!-- ── App shell ──────────────────────────────────────────────────────── -->
+<div id="app" class="hidden">
+
+  <header>
+    <div class="header-left">
+      <span class="logo">zeropanel</span>
+      <select id="site-selector" title="Active site"></select>
+    </div>
+    <div class="header-right">
+      <span id="header-username"></span>
+      <button id="logout-btn">Sign out</button>
+    </div>
+  </header>
+
+  <div class="main-layout">
+
+    <!-- File tree sidebar -->
+    <aside id="sidebar">
+      <div class="sidebar-toolbar">
+        <button id="upload-btn"       title="Upload files">↑ Upload</button>
+        <button id="mkdir-btn"        title="New folder">+ Folder</button>
+        <button id="refresh-tree-btn" title="Refresh">↺</button>
+      </div>
+      <div id="file-tree"></div>
+      <input type="file" id="upload-input" multiple style="display:none">
+    </aside>
+
+    <!-- Right panel -->
+    <main>
+      <div id="breadcrumb">/</div>
+
+      <div class="tab-bar">
+        <button class="tab active" data-tab="editor">Editor</button>
+        <button class="tab"        data-tab="terminal">Terminal</button>
+        <button class="tab"        data-tab="logs">Logs</button>
+      </div>
+
+      <!-- Editor -->
+      <div id="tab-editor" class="tab-content">
+        <div class="toolbar">
+          <span id="editor-filename">No file open</span>
+          <div class="toolbar-actions">
+            <button id="save-btn"     class="hidden">Save</button>
+            <button id="download-btn" class="hidden">Download</button>
+          </div>
+        </div>
+        <div id="editor-container">
+          <div id="editor-placeholder">← Select a file from the sidebar to edit it</div>
+          <textarea id="codemirror-target" style="display:none"></textarea>
+        </div>
+      </div>
+
+      <!-- Terminal -->
+      <div id="tab-terminal" class="tab-content hidden">
+        <div class="toolbar">
+          <span>Terminal &mdash; <em id="terminal-site-label">no site selected</em></span>
+          <button id="clear-terminal-btn" style="margin-left:auto">Clear</button>
+        </div>
+        <div id="terminal-output"></div>
+        <div class="terminal-input-row">
+          <span class="prompt">$</span>
+          <input type="text" id="terminal-input"
+                 placeholder="git status · composer install · php artisan migrate …"
+                 autocomplete="off" spellcheck="false">
+          <button id="terminal-send-btn">Run</button>
+        </div>
+      </div>
+
+      <!-- Logs -->
+      <div id="tab-logs" class="tab-content hidden">
+        <div class="toolbar">
+          <select id="log-type-select">
+            <option value="access">Access log</option>
+            <option value="error">Error log</option>
+          </select>
+          <button id="refresh-logs-btn">Refresh</button>
+          <label style="font-size:13px;display:flex;align-items:center;gap:6px;color:var(--muted)">
+            <input type="checkbox" id="autoreload-logs"> Auto-refresh (5 s)
+          </label>
+        </div>
+        <div id="logs-content">Select a site and click Refresh to load logs.</div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- Context menu -->
+<div id="context-menu" class="hidden">
+  <ul>
+    <li id="ctx-open">Open in editor</li>
+    <li id="ctx-download">Download</li>
+    <li id="ctx-delete" style="color:var(--red)">Delete</li>
+  </ul>
+</div>
+
+<!-- CodeMirror 5 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/php/php.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/shell/shell.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/yaml/yaml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/nginx/nginx.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

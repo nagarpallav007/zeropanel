@@ -117,6 +117,34 @@ sudo panel install-phpmyadmin
 # Prompts for: domain/IP, HTTP auth username, HTTP auth password
 # Installs phpMyAdmin, configures nginx vhost, sets up HTTP basic auth
 # Access at http://<domain> — log in with credentials from panel create-db
+
+sudo panel activate-web
+# Prompts for: domain or IP to serve the web panel on
+# Installs the zeropanel browser UI: file manager, code editor, terminal, log viewer
+# Users log in with their existing system credentials (no separate password)
+# Access at http://<domain> — then optionally: sudo panel issue-ssl <domain> --no-www
+```
+
+---
+
+## Web interface
+
+`panel activate-web` installs a FastAPI service that gives every user a browser-based alternative to SSH:
+
+| Feature | Detail |
+|---|---|
+| **Authentication** | Existing system credentials via PAM — no separate password database |
+| **File manager** | Browse, upload, download, and edit files in `/srv/clients/{user}/` |
+| **Code editor** | CodeMirror with syntax highlighting for PHP, JS, HTML, CSS, YAML, shell |
+| **Terminal** | Typed commands streamed live over WebSocket — same whitelist as the restricted shell |
+| **Log viewer** | nginx access and error logs for each site, with optional auto-refresh |
+| **Audit log** | SQLite database records every file write and command run per user |
+
+The service runs as a dedicated `panel-web` system user on `127.0.0.1:8000` behind nginx. Commands execute as the actual site user via a double-validated whitelist (Python + bash).
+
+```bash
+sudo panel activate-web          # sets everything up, prompts for domain
+sudo panel issue-ssl <domain> --no-www   # add HTTPS
 ```
 
 ---

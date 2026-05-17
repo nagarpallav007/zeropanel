@@ -1,0 +1,15 @@
+#!/bin/bash
+# Called as: sudo -u {username} /opt/panel/bin/web-exec {cmd} [args...]
+# Second validation layer — FastAPI already checks, this enforces at the OS boundary.
+set -e
+
+CMD="${1:-}"
+ALLOWED='^(php[0-9.]*|composer|git|npm|node|ls|pwd|mkdir|cp|mv|rm|tee|unzip|tar|cat|head|tail)$'
+
+if [[ -z "$CMD" ]] || ! [[ "$CMD" =~ $ALLOWED ]]; then
+    echo "web-exec: command not allowed: $CMD" >&2
+    exit 1
+fi
+
+shift
+exec "$CMD" "$@"

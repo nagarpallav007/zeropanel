@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import typer
 
-from commands import database, extras, logs, server, sites, ssl, users
+from commands import database, extras, logs, server, sites, ssl, users, webpanel
 
 app = typer.Typer(
     name="panel",
@@ -35,6 +35,7 @@ app.command("logs")(logs.logs)
 
 # Optional services
 app.command("install-phpmyadmin")(extras.install_phpmyadmin)
+app.command("activate-web")(webpanel.activate_web)
 
 # Server bootstrap
 app.command("init-server")(server.init_server)
