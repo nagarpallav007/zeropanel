@@ -6,7 +6,9 @@ try:
     import pam as _pam
 
     def pam_authenticate(username: str, password: str) -> bool:
-        return _pam.pam().authenticate(username, password)
+        # Use a dedicated PAM service that skips shell validation so SFTP-only
+        # users (shell=/usr/sbin/nologin) can authenticate alongside dev users.
+        return _pam.pam().authenticate(username, password, service="zeropanel-web")
 except ImportError:
     def pam_authenticate(username: str, password: str) -> bool:
         raise RuntimeError("python-pam is not installed")
