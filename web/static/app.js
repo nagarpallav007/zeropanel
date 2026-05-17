@@ -297,6 +297,8 @@ function connectTerminal() {
       span.textContent = `[exit ${msg.code}]`;
       out.appendChild(span);
     }
+    // Keep at most 300 lines to avoid browser memory bloat
+    while (out.children.length > 300) out.removeChild(out.firstChild);
     out.scrollTop = out.scrollHeight;
   };
 
