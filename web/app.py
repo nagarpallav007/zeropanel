@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from web.db import init_db
 from web.routes.auth import router as auth_router
+from web.routes.config import router as config_router
 from web.routes.files import router as files_router
 from web.routes.settings import router as settings_router
 from web.routes.terminal import router as terminal_router
@@ -20,6 +21,7 @@ async def _lifespan(app: FastAPI):
 app = FastAPI(title="zeropanel web", lifespan=_lifespan, docs_url=None, redoc_url=None)
 
 app.include_router(auth_router,     prefix="/api")
+app.include_router(config_router,   prefix="/api")
 app.include_router(files_router,    prefix="/api")
 app.include_router(settings_router, prefix="/api")
 app.include_router(terminal_router, prefix="/api")

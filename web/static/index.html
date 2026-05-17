@@ -132,6 +132,24 @@
           </div>
           <p class="settings-hint">To change limits, run on the server:</p>
           <pre id="settings-cli-hint" class="settings-cli"></pre>
+
+          <p class="settings-section-title">Site Configuration</p>
+          <div class="settings-config-group">
+            <div class="settings-config-row">
+              <div>
+                <p>nginx vhost</p>
+                <p class="settings-hint" id="nginx-conf-path">/etc/nginx/sites-available/…</p>
+              </div>
+              <button id="edit-nginx-btn">Edit</button>
+            </div>
+            <div class="settings-config-row">
+              <div>
+                <p>PHP-FPM pool</p>
+                <p class="settings-hint" id="phpfpm-conf-path">/etc/php/…/fpm/pool.d/….conf</p>
+              </div>
+              <button id="edit-phpfpm-btn">Edit</button>
+            </div>
+          </div>
         </div>
       </div>
 

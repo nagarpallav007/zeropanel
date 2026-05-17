@@ -1,3 +1,4 @@
+import asyncio
 import subprocess
 from pathlib import Path
 
@@ -102,9 +103,21 @@ async def upload_file(
     if not fname or fname in (".", ".."):
         raise HTTPException(400, "Invalid filename")
     dest = _safe(username, str(Path(path.lstrip("/")) / fname))  # re-validate full path
-    content = await file.read()
-    code, err = _sudo_exec(username, "tee", str(dest), stdin=content)
-    if code != 0:
+    proc = await asyncio.create_subprocess_exec(
+        "sudo", "-u", username, _WEB_EXEC, "tee", str(dest),
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        while chunk := await file.read(256 * 1024):
+            proc.stdin.write(chunk)
+            await proc.stdin.drain()
+    finally:
+        proc.stdin.close()
+    await proc.wait()
+    if proc.returncode != 0:
+        err = (await proc.stderr.read()).decode(errors="replace").strip()
         raise HTTPException(500, f"Upload failed: {err}")
     rel = str(dest.relative_to((BASE_DIR / username).resolve()))
     await log_action(username, "file_upload", rel)

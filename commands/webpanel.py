@@ -45,7 +45,12 @@ RestartSec=5
 WantedBy=multi-user.target
 """
 
-_SUDOERS_RULE = "panel-web ALL=(ALL:ALL) NOPASSWD: /opt/panel/bin/web-exec\n"
+_SUDOERS_RULE = (
+    "panel-web ALL=(ALL:ALL) NOPASSWD: /opt/panel/bin/web-exec\n"
+    "panel-web ALL=(root)    NOPASSWD: /opt/panel/bin/web-exec-config\n"
+)
+
+_WEB_EXEC_CONFIG = Path("/opt/panel/bin/web-exec-config")
 
 
 def _nginx_vhost(domain: str) -> str:
@@ -57,12 +62,15 @@ server {{
     client_max_body_size 1G;
 
     location / {{
-        proxy_pass         http://127.0.0.1:8000;
-        proxy_set_header   Host $host;
-        proxy_set_header   X-Real-IP $remote_addr;
-        proxy_http_version 1.1;
-        proxy_set_header   Upgrade $http_upgrade;
-        proxy_set_header   Connection "upgrade";
+        proxy_pass          http://127.0.0.1:8000;
+        proxy_set_header    Host $host;
+        proxy_set_header    X-Real-IP $remote_addr;
+        proxy_http_version  1.1;
+        proxy_set_header    Upgrade $http_upgrade;
+        proxy_set_header    Connection "upgrade";
+        proxy_read_timeout  600s;
+        proxy_send_timeout  600s;
+        client_body_timeout 600s;
     }}
 }}
 """
@@ -118,18 +126,17 @@ def activate_web(
     run(["sudo", "usermod", "-aG", "shadow", "panel-web"])
     print("  [green]✓[/green] panel-web user ready")
 
-    # ── 3. Set permissions on bin/web-exec + write PAM service file ─────────
-    print("[bold]Step 3/8[/bold] Securing web-exec wrapper and PAM service…")
-    if not _WEB_EXEC.exists():
-        print(f"[red]{_WEB_EXEC} not found — ensure the panel repo is complete.[/red]")
-        raise typer.Exit(1)
-    run(["sudo", "chmod", "755", str(_WEB_EXEC)])
-    run(["sudo", "chown", "root:root", str(_WEB_EXEC)])
-    # Custom PAM service: authenticates all system users regardless of shell,
-    # so SFTP-only users (nologin) can log in alongside dev-tier users.
+    # ── 3. Set permissions on bin/web-exec + web-exec-config + write PAM ───────
+    print("[bold]Step 3/8[/bold] Securing web-exec wrappers and PAM service…")
+    for script in (_WEB_EXEC, _WEB_EXEC_CONFIG):
+        if not script.exists():
+            print(f"[red]{script} not found — ensure the panel repo is complete.[/red]")
+            raise typer.Exit(1)
+        run(["sudo", "chmod", "755", str(script)])
+        run(["sudo", "chown", "root:root", str(script)])
     pam_service = "auth    required   pam_unix.so\naccount required   pam_permit.so\n"
     sudo_write(Path("/etc/pam.d/zeropanel-web"), pam_service)
-    print("  [green]✓[/green] web-exec secured, PAM service written")
+    print("  [green]✓[/green] web-exec wrappers secured, PAM service written")
 
     # ── 4. Write sudoers rule ────────────────────────────────────────────────
     print("[bold]Step 4/8[/bold] Configuring sudoers…")

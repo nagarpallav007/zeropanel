@@ -8,6 +8,7 @@ const S = {
   site: '',          // active site name
   treePath: '',      // current dir shown in sidebar
   openFile: null,    // currently open file path (relative to user base)
+  configMode: null,  // null | {type:'nginx'|'phpfpm', site} — system config open in editor
   editor: null,      // CodeMirror instance
   editorDirty: false,
   ws: null,          // terminal WebSocket
@@ -151,7 +152,40 @@ function fileIcon(name) {
 }
 
 // ── Editor ────────────────────────────────────────────────────────────────────
+function openInEditor(content, label, mode) {
+  S.openFile    = null;
+  S.configMode  = null;   // caller sets this after calling us
+  S.editorDirty = false;
+  $('editor-filename').textContent = label;
+  show('save-btn');
+  hide('download-btn', 'editor-placeholder');
+  if (S.editor) {
+    S.editor.setValue(content);
+    S.editor.setOption('mode', mode || null);
+  } else {
+    S.editor = CodeMirror.fromTextArea($('codemirror-target'), {
+      value: content,
+      mode: mode || null,
+      theme: 'dracula',
+      lineNumbers: true,
+      matchBrackets: true,
+      indentUnit: 4,
+      tabSize: 4,
+      indentWithTabs: false,
+      lineWrapping: false,
+      autofocus: true,
+    });
+    S.editor.on('change', () => {
+      S.editorDirty = true;
+      $('editor-filename').textContent = '● ' + label;
+    });
+  }
+  document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('active'));
+  activateTab('editor');
+}
+
 async function openFile(path) {
+  S.configMode = null;
   try {
     const { content } = await api('GET', `/api/files/read?path=${encodeURIComponent(path)}`);
     S.openFile = path;
@@ -200,8 +234,21 @@ async function openFile(path) {
 }
 
 async function saveFile() {
-  if (!S.openFile) return;
+  if (!S.editor) return;
   const content = S.editor.getValue();
+
+  if (S.configMode) {
+    try {
+      await api('POST', '/api/config', { type: S.configMode.type, site: S.configMode.site, content });
+      S.editorDirty = false;
+      $('editor-filename').textContent = $('editor-filename').textContent.replace(/^● /, '');
+    } catch (e) {
+      alert('Save failed (config restored if invalid):\n' + e.message);
+    }
+    return;
+  }
+
+  if (!S.openFile) return;
   try {
     await api('POST', '/api/files/write', { path: S.openFile, content });
     S.editorDirty = false;
@@ -377,15 +424,20 @@ async function loadSettings() {
     $('settings-site-label').textContent = 'no site selected';
     ['set-nginx-limit', 'set-php-upload', 'set-php-post'].forEach(id => { $(id).value = ''; });
     $('settings-cli-hint').textContent = '';
+    $('nginx-conf-path').textContent   = '/etc/nginx/sites-available/…';
+    $('phpfpm-conf-path').textContent  = '/etc/php/…/fpm/pool.d/….conf';
     return;
   }
   $('settings-site-label').textContent = S.site;
+  $('nginx-conf-path').textContent  = `/etc/nginx/sites-available/${S.site}.conf`;
   try {
     const d = await api('GET', `/api/settings?site=${encodeURIComponent(S.site)}`);
     $('set-nginx-limit').value    = d.nginx_limit;
     $('set-php-upload').value     = d.php_upload;
     $('set-php-post').value       = d.php_post;
     $('settings-cli-hint').textContent = d.cli_command;
+    if (d.php_version && d.php_version !== 'unknown')
+      $('phpfpm-conf-path').textContent = `/etc/php/${d.php_version}/fpm/pool.d/${S.user}.conf`;
   } catch (e) {
     $('settings-cli-hint').textContent = 'Could not load settings: ' + e.message;
   }
@@ -526,6 +578,24 @@ function init() {
       loadTree();
     } catch (e) { alert(e.message); }
     hideCtxMenu();
+  };
+
+  // Config editor buttons (Settings tab)
+  $('edit-nginx-btn').onclick = async () => {
+    if (!S.site) { alert('No site selected'); return; }
+    try {
+      const { content, path } = await api('GET', `/api/config?type=nginx&site=${encodeURIComponent(S.site)}`);
+      openInEditor(content, path, 'nginx');
+      S.configMode = { type: 'nginx', site: S.site };
+    } catch (e) { alert('Could not load nginx config: ' + e.message); }
+  };
+  $('edit-phpfpm-btn').onclick = async () => {
+    if (!S.site) { alert('No site selected'); return; }
+    try {
+      const { content, path } = await api('GET', `/api/config?type=phpfpm&site=${encodeURIComponent(S.site)}`);
+      openInEditor(content, path, 'shell');
+      S.configMode = { type: 'phpfpm', site: S.site };
+    } catch (e) { alert('Could not load PHP-FPM config: ' + e.message); }
   };
 
   // Bootstrap

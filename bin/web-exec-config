@@ -1,0 +1,56 @@
+#!/bin/bash
+# Called as: sudo /opt/panel/bin/web-exec-config {cmd} [args...]
+# Allows panel-web to write nginx/php-fpm system configs as root,
+# with validation and automatic rollback on failure.
+set -euo pipefail
+
+CMD="${1:-}"
+
+_validate_domain()  { [[ "$1" =~ ^[a-zA-Z0-9._-]+$    ]] || { echo "Invalid domain"   >&2; exit 1; }; }
+_validate_username(){ [[ "$1" =~ ^[a-z_][a-z0-9_-]*$  ]] || { echo "Invalid username" >&2; exit 1; }; }
+_validate_version() { [[ "$1" =~ ^[0-9]+\.[0-9]+$      ]] || { echo "Invalid version"  >&2; exit 1; }; }
+
+case "$CMD" in
+  write-nginx-vhost)
+    DOMAIN="${2:-}"
+    _validate_domain "$DOMAIN"
+    TARGET="/etc/nginx/sites-available/${DOMAIN}.conf"
+    BACKUP="${TARGET}.bak"
+    [[ -f "$TARGET" ]] && cp "$TARGET" "$BACKUP"
+    cat > "$TARGET"
+    if nginx -t 2>&1; then
+        nginx -s reload
+        rm -f "$BACKUP"
+    else
+        [[ -f "$BACKUP" ]] && cp "$BACKUP" "$TARGET"
+        rm -f "$BACKUP"
+        echo "nginx config invalid — original restored" >&2
+        exit 1
+    fi
+    ;;
+
+  write-phpfpm-pool)
+    USERNAME="${2:-}"
+    VERSION="${3:-}"
+    _validate_username "$USERNAME"
+    _validate_version  "$VERSION"
+    TARGET="/etc/php/${VERSION}/fpm/pool.d/${USERNAME}.conf"
+    BACKUP="${TARGET}.bak"
+    [[ -f "$TARGET" ]] && cp "$TARGET" "$BACKUP"
+    cat > "$TARGET"
+    if systemctl reload "php${VERSION}-fpm" 2>&1; then
+        rm -f "$BACKUP"
+    else
+        [[ -f "$BACKUP" ]] && cp "$BACKUP" "$TARGET"
+        rm -f "$BACKUP"
+        systemctl reload "php${VERSION}-fpm" || true
+        echo "PHP-FPM reload failed — original restored" >&2
+        exit 1
+    fi
+    ;;
+
+  *)
+    echo "web-exec-config: unknown command: $CMD" >&2
+    exit 1
+    ;;
+esac
