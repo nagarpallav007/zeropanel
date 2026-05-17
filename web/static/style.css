@@ -1,0 +1,107 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #0d1117;
+  --surface:  #161b22;
+  --border:   #30363d;
+  --text:     #c9d1d9;
+  --muted:    #8b949e;
+  --accent:   #58a6ff;
+  --green:    #3fb950;
+  --red:      #f85149;
+  --header-h: 48px;
+  --sidebar-w: 260px;
+}
+
+body { background: var(--bg); color: var(--text); font: 14px/1.5 'Segoe UI', system-ui, sans-serif; height: 100vh; overflow: hidden; }
+
+/* ── Login ──────────────────────────────────────────────────────────── */
+#login-screen { display: flex; align-items: center; justify-content: center; height: 100vh; }
+.login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 36px 40px; width: 340px; }
+.login-card h1 { font-size: 20px; margin-bottom: 6px; }
+.login-card p { color: var(--muted); margin-bottom: 20px; font-size: 13px; }
+.login-card input { display: block; width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 8px 12px; margin-bottom: 12px; font-size: 14px; outline: none; }
+.login-card input:focus { border-color: var(--accent); }
+.login-card button[type=submit] { width: 100%; background: var(--accent); color: #000; border: none; border-radius: 6px; padding: 9px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.login-card button[type=submit]:hover { opacity: 0.9; }
+.error { color: var(--red); font-size: 13px; margin-top: 8px; min-height: 18px; }
+
+/* ── Header ─────────────────────────────────────────────────────────── */
+header { height: var(--header-h); background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; flex-shrink: 0; }
+.logo { font-weight: 700; font-size: 15px; color: var(--accent); margin-right: 16px; }
+.header-left, .header-right { display: flex; align-items: center; gap: 12px; }
+.header-right { color: var(--muted); font-size: 13px; }
+select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 4px 8px; border-radius: 4px; font-size: 13px; cursor: pointer; }
+
+/* ── Layout ─────────────────────────────────────────────────────────── */
+#app { display: flex; flex-direction: column; height: 100vh; }
+.main-layout { display: flex; flex: 1; overflow: hidden; }
+
+/* ── Sidebar ────────────────────────────────────────────────────────── */
+aside { width: var(--sidebar-w); background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; }
+.sidebar-toolbar { display: flex; gap: 6px; padding: 8px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.sidebar-toolbar button { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 4px 0; font-size: 12px; cursor: pointer; }
+.sidebar-toolbar button:hover { border-color: var(--accent); color: var(--accent); }
+#file-tree { flex: 1; overflow-y: auto; padding: 4px 0; }
+.tree-item { display: flex; align-items: center; gap: 6px; padding: 3px 12px; cursor: pointer; font-size: 13px; user-select: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tree-item:hover { background: rgba(88,166,255,.08); }
+.tree-item.active { background: rgba(88,166,255,.14); color: var(--accent); }
+.tree-item .icon { font-size: 14px; flex-shrink: 0; }
+.tree-children { padding-left: 14px; }
+
+/* ── Main ───────────────────────────────────────────────────────────── */
+main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+#breadcrumb { padding: 6px 16px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--border); background: var(--bg); flex-shrink: 0; }
+
+/* ── Tabs ───────────────────────────────────────────────────────────── */
+.tab-bar { display: flex; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.tab { background: none; border: none; color: var(--muted); padding: 10px 20px; font-size: 13px; cursor: pointer; border-bottom: 2px solid transparent; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.tab-content.hidden { display: none; }
+
+/* ── Toolbar ────────────────────────────────────────────────────────── */
+.toolbar { display: flex; align-items: center; gap: 10px; padding: 6px 12px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; font-size: 13px; }
+.toolbar-actions { display: flex; gap: 8px; margin-left: auto; }
+#editor-filename { color: var(--muted); font-family: monospace; font-size: 12px; }
+
+/* ── Buttons ────────────────────────────────────────────────────────── */
+button { background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 4px 12px; font-size: 13px; cursor: pointer; }
+button:hover { border-color: var(--accent); color: var(--accent); }
+#logout-btn { font-size: 12px; padding: 3px 10px; }
+#save-btn { background: var(--green); border-color: var(--green); color: #000; font-weight: 600; }
+#save-btn:hover { opacity: 0.85; }
+
+/* ── Editor ─────────────────────────────────────────────────────────── */
+#editor-container { flex: 1; overflow: hidden; position: relative; }
+#editor-placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 13px; }
+.CodeMirror { height: 100% !important; font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace !important; font-size: 13px !important; background: var(--bg) !important; color: var(--text) !important; }
+.CodeMirror-scroll { height: 100% !important; }
+.CodeMirror-gutters { background: var(--bg) !important; border-right: 1px solid var(--border) !important; }
+.CodeMirror-linenumber { color: var(--muted) !important; }
+
+/* ── Terminal ───────────────────────────────────────────────────────── */
+#terminal-output { flex: 1; overflow-y: auto; padding: 12px 16px; font-family: 'JetBrains Mono', monospace; font-size: 13px; background: #000; line-height: 1.6; }
+.t-out  { color: #d4d4d4; white-space: pre-wrap; word-break: break-all; display: block; }
+.t-err  { color: var(--red); white-space: pre-wrap; word-break: break-all; display: block; }
+.t-cmd  { color: var(--accent); white-space: pre-wrap; display: block; margin-top: 8px; }
+.t-exit-ok  { color: var(--green); font-size: 11px; display: block; }
+.t-exit-err { color: var(--red);   font-size: 11px; display: block; }
+.terminal-input-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--surface); border-top: 1px solid var(--border); flex-shrink: 0; }
+.prompt { color: var(--green); font-family: monospace; flex-shrink: 0; }
+#terminal-input { flex: 1; background: transparent; border: none; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 13px; outline: none; }
+#terminal-send-btn { flex-shrink: 0; }
+
+/* ── Logs ───────────────────────────────────────────────────────────── */
+#logs-content { flex: 1; overflow-y: auto; padding: 12px 16px; font-family: 'JetBrains Mono', monospace; font-size: 12px; background: #000; white-space: pre-wrap; word-break: break-all; color: #ccc; line-height: 1.5; }
+
+/* ── Context menu ───────────────────────────────────────────────────── */
+#context-menu { position: fixed; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 4px 0; z-index: 1000; min-width: 140px; box-shadow: 0 4px 12px rgba(0,0,0,.4); }
+#context-menu ul { list-style: none; }
+#context-menu li { padding: 7px 16px; font-size: 13px; cursor: pointer; }
+#context-menu li:hover { background: rgba(88,166,255,.1); color: var(--accent); }
+#ctx-delete { color: var(--red); }
+#ctx-delete:hover { background: rgba(248,81,73,.1) !important; }
+
+.hidden { display: none !important; }
