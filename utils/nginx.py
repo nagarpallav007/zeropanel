@@ -7,7 +7,7 @@ def build_config(domain: str, root: str, logs: str, sock: str) -> str:
     index index.php index.html;
     charset utf-8;
 
-    client_max_body_size 64M;
+    client_max_body_size 1G;
     server_tokens off;
 
     access_log {logs}/access.log;

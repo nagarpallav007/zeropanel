@@ -52,7 +52,7 @@ server {{
     listen 80;
     server_name {domain};
 
-    client_max_body_size 256M;
+    client_max_body_size 1G;
 
     location / {{
         proxy_pass         http://127.0.0.1:8000;
