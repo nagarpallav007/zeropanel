@@ -95,13 +95,14 @@ def activate_web(
              "--shell", "/usr/sbin/nologin", "panel-web"])
     print("  [green]✓[/green] panel-web user ready")
 
-    # ── 3. Write bin/web-exec ────────────────────────────────────────────────
-    print("[bold]Step 3/8[/bold] Installing web-exec wrapper…")
-    src = Path(__file__).parent.parent / "bin" / "web-exec"
-    run(["sudo", "cp", str(src), str(_WEB_EXEC)])
+    # ── 3. Set permissions on bin/web-exec (already in-repo at _WEB_EXEC) ────
+    print("[bold]Step 3/8[/bold] Securing web-exec wrapper…")
+    if not _WEB_EXEC.exists():
+        print(f"[red]{_WEB_EXEC} not found — ensure the panel repo is complete.[/red]")
+        raise typer.Exit(1)
     run(["sudo", "chmod", "755", str(_WEB_EXEC)])
     run(["sudo", "chown", "root:root", str(_WEB_EXEC)])
-    print("  [green]✓[/green] web-exec installed")
+    print("  [green]✓[/green] web-exec secured")
 
     # ── 4. Write sudoers rule ────────────────────────────────────────────────
     print("[bold]Step 4/8[/bold] Configuring sudoers…")
