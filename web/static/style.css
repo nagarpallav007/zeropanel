@@ -108,3 +108,29 @@ button:hover { border-color: var(--accent); color: var(--accent); }
 #codemirror-target { display: none !important; }
 
 .hidden { display: none !important; }
+
+/* ── Modals ─────────────────────────────────────────────────────────────── */
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 200; }
+.modal-box { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 24px 28px; width: 360px; z-index: 201; display: flex; flex-direction: column; gap: 14px; }
+.modal-box p { font-size: 13px; color: var(--text); }
+.modal-box input[type=text] { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 8px 12px; font-size: 14px; outline: none; width: 100%; }
+.modal-box input[type=text]:focus { border-color: var(--accent); }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.modal-ok-btn { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 600; }
+.modal-ok-btn:hover { opacity: 0.85; color: #000; }
+.modal-status { color: var(--muted); font-size: 12px; font-family: 'JetBrains Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── Progress bar ───────────────────────────────────────────────────────── */
+.progress-track { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+#upload-progress-bar { height: 100%; background: var(--accent); width: 0%; transition: width .15s ease; }
+
+/* ── Settings tab ───────────────────────────────────────────────────────── */
+#settings-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 20px; max-width: 520px; }
+.settings-group { display: flex; flex-direction: column; gap: 10px; }
+.settings-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; }
+.settings-row label { font-size: 12px; color: var(--muted); }
+.settings-row label code { background: var(--bg); padding: 1px 5px; border-radius: 3px; font-size: 11px; }
+.settings-row input { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 5px 10px; border-radius: 4px; font-size: 13px; font-family: 'JetBrains Mono', monospace; width: 90px; }
+.settings-badge { font-size: 10px; background: var(--bg); border: 1px solid var(--border); color: var(--muted); padding: 2px 6px; border-radius: 10px; white-space: nowrap; }
+.settings-hint { font-size: 12px; color: var(--muted); }
+.settings-cli { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent); white-space: pre-wrap; word-break: break-all; }

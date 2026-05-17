@@ -60,6 +60,7 @@
         <button class="tab active" data-tab="editor">Editor</button>
         <button class="tab"        data-tab="terminal">Terminal</button>
         <button class="tab"        data-tab="logs">Logs</button>
+        <button class="tab"        data-tab="settings">Settings</button>
       </div>
 
       <!-- Editor -->
@@ -108,6 +109,32 @@
         <div id="logs-content">Select a site and click Refresh to load logs.</div>
       </div>
 
+      <!-- Settings -->
+      <div id="tab-settings" class="tab-content hidden">
+        <div class="toolbar"><span>Upload Limits — <em id="settings-site-label">no site selected</em></span></div>
+        <div id="settings-body">
+          <div class="settings-group">
+            <div class="settings-row">
+              <label>Nginx <code>client_max_body_size</code></label>
+              <input type="text" id="set-nginx-limit" readonly placeholder="—">
+              <span class="settings-badge">nginx</span>
+            </div>
+            <div class="settings-row">
+              <label>PHP <code>upload_max_filesize</code></label>
+              <input type="text" id="set-php-upload" readonly placeholder="—">
+              <span class="settings-badge">php-fpm</span>
+            </div>
+            <div class="settings-row">
+              <label>PHP <code>post_max_size</code></label>
+              <input type="text" id="set-php-post" readonly placeholder="—">
+              <span class="settings-badge">php-fpm</span>
+            </div>
+          </div>
+          <p class="settings-hint">To change limits, run on the server:</p>
+          <pre id="settings-cli-hint" class="settings-cli"></pre>
+        </div>
+      </div>
+
     </main>
   </div>
 </div>
@@ -121,6 +148,29 @@
     <li id="ctx-extract">Extract here</li>
     <li id="ctx-delete" style="color:var(--red)">Delete</li>
   </ul>
+</div>
+
+<!-- Input modal (shared: new file, new folder, rename) -->
+<div id="input-modal" class="hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-box">
+    <p id="modal-label"></p>
+    <input type="text" id="modal-input" autocomplete="off" spellcheck="false">
+    <div class="modal-actions">
+      <button id="modal-cancel">Cancel</button>
+      <button id="modal-ok" class="modal-ok-btn">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- Upload progress modal -->
+<div id="upload-modal" class="hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-box">
+    <p id="upload-modal-label">Uploading…</p>
+    <div class="progress-track"><div id="upload-progress-bar"></div></div>
+    <p id="upload-modal-status" class="modal-status"></p>
+  </div>
 </div>
 
 <!-- CodeMirror 5 -->

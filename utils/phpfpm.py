@@ -31,6 +31,8 @@ php_admin_flag[allow_url_fopen]    = Off
 php_admin_value[disable_functions] = exec,system,shell_exec,passthru,proc_open,popen,proc_nice
 php_admin_value[upload_tmp_dir]    = {tmp}
 php_admin_value[session.save_path] = {tmp}
+php_admin_value[upload_max_filesize] = 64M
+php_admin_value[post_max_size]       = 64M
 """
 
 

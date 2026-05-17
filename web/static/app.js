@@ -225,7 +225,8 @@ function activateTab(name) {
     c.classList.toggle('hidden', c.id !== 'tab-' + name);
   });
   if (name === 'terminal' && !S.ws) connectTerminal();
-  if (name === 'logs') loadLogs();
+  if (name === 'logs')     loadLogs();
+  if (name === 'settings') loadSettings();
   if (name === 'editor' && S.editor) S.editor.refresh();
 }
 
@@ -295,18 +296,99 @@ async function loadLogs() {
   }
 }
 
+// ── Input modal ───────────────────────────────────────────────────────────────
+function showInputModal(label, defaultVal = '') {
+  return new Promise(resolve => {
+    $('modal-label').textContent = label;
+    $('modal-input').value = defaultVal;
+    show('input-modal');
+    setTimeout(() => { $('modal-input').focus(); $('modal-input').select(); }, 30);
+
+    const done = val => {
+      hide('input-modal');
+      $('modal-ok').onclick     = null;
+      $('modal-cancel').onclick = null;
+      $('modal-input').onkeydown = null;
+      resolve(val);
+    };
+
+    $('modal-ok').onclick      = () => done($('modal-input').value.trim() || null);
+    $('modal-cancel').onclick  = () => done(null);
+    $('modal-input').onkeydown = ev => {
+      if (ev.key === 'Enter')  done($('modal-input').value.trim() || null);
+      if (ev.key === 'Escape') done(null);
+    };
+  });
+}
+
 // ── Upload ────────────────────────────────────────────────────────────────────
-async function uploadFiles(files) {
-  for (const file of files) {
-    const fd = new FormData();
+function uploadFileXHR(file, path, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const fd  = new FormData();
     fd.append('file', file);
+    xhr.open('POST', `/api/files/upload?path=${encodeURIComponent(path)}`);
+    xhr.upload.onprogress = e => {
+      if (e.lengthComputable) onProgress(Math.round(e.loaded / e.total * 100));
+    };
+    xhr.onload = () => {
+      if (xhr.status < 400) { onProgress(100); resolve(); }
+      else {
+        try { reject(new Error(JSON.parse(xhr.responseText).detail)); }
+        catch { reject(new Error(`HTTP ${xhr.status}`)); }
+      }
+    };
+    xhr.onerror = () => reject(new Error('Network error'));
+    xhr.send(fd);
+  });
+}
+
+async function uploadFiles(files) {
+  const arr = Array.from(files);
+  if (!arr.length) return;
+
+  const bar    = $('upload-progress-bar');
+  const label  = $('upload-modal-label');
+  const status = $('upload-modal-status');
+  show('upload-modal');
+  const errors = [];
+
+  for (let i = 0; i < arr.length; i++) {
+    const file = arr[i];
+    label.textContent  = `Uploading ${i + 1} of ${arr.length}`;
+    status.textContent = file.name;
+    bar.style.width    = '0%';
     try {
-      await api('POST', `/api/files/upload?path=${encodeURIComponent(S.treePath)}`, fd);
+      await uploadFileXHR(file, S.treePath, pct => { bar.style.width = pct + '%'; });
     } catch (e) {
-      alert(`Upload failed for ${file.name}: ${e.message}`);
+      errors.push(`${file.name}: ${e.message}`);
     }
   }
+
+  hide('upload-modal');
+  bar.style.width = '0%';
   loadTree();
+  if (errors.length) alert('Upload errors:\n' + errors.join('\n'));
+}
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+async function loadSettings() {
+  if (!S.site) {
+    $('settings-site-label').textContent = 'no site selected';
+    ['set-nginx-limit', 'set-php-upload', 'set-php-post'].forEach(id => { $(id).value = ''; });
+    $('settings-cli-hint').textContent = '';
+    return;
+  }
+  $('settings-site-label').textContent = S.site;
+  try {
+    const d = await api('GET', `/api/settings?site=${encodeURIComponent(S.site)}`);
+    $('set-nginx-limit').value    = d.nginx_limit;
+    $('set-php-upload').value     = d.php_upload;
+    $('set-php-post').value       = d.php_post;
+    $('settings-cli-hint').textContent = d.cli_command;
+  } catch (e) {
+    $('settings-cli-hint').textContent = 'Could not load settings: ' + e.message;
+  }
 }
 
 // ── Context menu ──────────────────────────────────────────────────────────────
@@ -356,14 +438,14 @@ function init() {
   $('upload-btn').onclick       = () => $('upload-input').click();
   $('refresh-tree-btn').onclick = () => loadTree();
   $('newfile-btn').onclick = async () => {
-    const name = prompt('New file name:');
+    const name = await showInputModal('New file name:');
     if (!name) return;
     const path = S.treePath ? S.treePath + '/' + name : name;
     try { await api('POST', '/api/files/write', { path, content: '' }); await loadTree(); openFile(path); }
     catch (e) { alert(e.message); }
   };
   $('mkdir-btn').onclick = async () => {
-    const name = prompt('New folder name:');
+    const name = await showInputModal('New folder name:');
     if (!name) return;
     const path = S.treePath ? S.treePath + '/' + name : name;
     try { await api('POST', '/api/files/mkdir', { path }); loadTree(); }
@@ -417,7 +499,7 @@ function init() {
   $('ctx-rename').onclick   = async () => {
     if (!S.ctxTarget) { hideCtxMenu(); return; }
     const oldName = S.ctxTarget.path.split('/').pop();
-    const newName = prompt('Rename to:', oldName);
+    const newName = await showInputModal('Rename to:', oldName);
     if (!newName || newName === oldName) { hideCtxMenu(); return; }
     const dir     = S.ctxTarget.path.split('/').slice(0, -1).join('/');
     const to_path = dir ? dir + '/' + newName : newName;

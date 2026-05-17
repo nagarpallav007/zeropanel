@@ -214,6 +214,57 @@ def enable_site(domain: str):
     print(f"[green]Enabled:[/green] {domain}")
 
 
+def set_upload_limit(
+    username: str,
+    domain: str,
+    size: str = typer.Argument(..., help="Upload size limit e.g. 64M, 256M, 1G"),
+):
+    """Set upload size limit for a site (nginx client_max_body_size + PHP-FPM pool)."""
+    validate_username(username)
+    validate_domain(domain)
+
+    if not re.match(r"^\d+(K|M|G)$", size, re.IGNORECASE):
+        print(f"[red]Invalid size: '{size}'. Use e.g. 64M, 256M, 1G[/red]")
+        raise typer.Exit(1)
+
+    size = size.upper()
+
+    # ── nginx vhost ──────────────────────────────────────────────────────────
+    conf = NGINX_AVAIL / f"{domain}.conf"
+    if not conf.exists():
+        print(f"[red]No nginx config found for {domain}[/red]")
+        raise typer.Exit(1)
+
+    text = conf.read_text()
+    if re.search(r"client_max_body_size\s+\S+;", text):
+        text = re.sub(r"client_max_body_size\s+\S+;", f"client_max_body_size {size};", text)
+    else:
+        text = text.replace("server {\n", f"server {{\n    client_max_body_size {size};\n", 1)
+    sudo_write(conf, text)
+
+    # ── PHP-FPM pool ─────────────────────────────────────────────────────────
+    from utils.phpfpm import pool_path as _pool_path
+    php_ver = _get_site_php(domain)
+    if php_ver:
+        pool = _pool_path(username, php_ver)
+        if pool.exists():
+            pt = pool.read_text()
+            for key in ("upload_max_filesize", "post_max_size"):
+                pattern = rf"(php_admin_value\[{key}\]\s*=\s*)\S+"
+                if re.search(pattern, pt):
+                    pt = re.sub(pattern, rf"\g<1>{size}", pt)
+                else:
+                    pt += f"php_admin_value[{key}] = {size}\n"
+            sudo_write(pool, pt)
+            run(["sudo", "systemctl", "reload", f"php{php_ver}-fpm"])
+
+    run(["sudo", "nginx", "-t"])
+    run(["sudo", "systemctl", "reload", "nginx"])
+
+    _log("set-upload-limit", username=username, domain=domain, size=size)
+    print(f"[green]Upload limit set to {size}[/green] for {domain}")
+
+
 def set_php(domain: str, version: str):
     """Switch the PHP-FPM version for a site."""
     validate_domain(domain)

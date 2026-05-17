@@ -22,6 +22,7 @@ app.command("list-sites")(sites.list_sites)
 app.command("disable-site")(sites.disable_site)
 app.command("enable-site")(sites.enable_site)
 app.command("set-php")(sites.set_php)
+app.command("set-upload-limit")(sites.set_upload_limit)
 
 # SSL
 app.command("issue-ssl")(ssl.issue_ssl)
