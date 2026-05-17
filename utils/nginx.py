@@ -53,7 +53,8 @@ def build_config(domain: str, root: str, logs: str, sock: str) -> str:
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
     }}
 
-    location ~ /\\.ht {{
+    # Block all dot-files (.env, .git, .htaccess, etc.) — allow .well-known for SSL renewal
+    location ~ /\\.(?!well-known) {{
         deny all;
     }}
 }}
