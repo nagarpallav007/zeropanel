@@ -83,6 +83,28 @@ def create_user(
     print(f"[green]User ready:[/green] {username}  tier={tier_label}  quota={quota}")
 
 
+def reset_password(
+    username: str,
+    password: str = typer.Option(
+        ..., prompt=True, hide_input=True, confirmation_prompt=True
+    ),
+):
+    """Reset the password of an existing system user."""
+    validate_username(username)
+    result = subprocess.run(["id", username], capture_output=True)
+    if result.returncode != 0:
+        print(f"[red]User '{username}' does not exist.[/red]")
+        raise typer.Exit(1)
+    subprocess.run(
+        ["sudo", "chpasswd"],
+        input=f"{username}:{password}\n",
+        text=True,
+        check=True,
+    )
+    _log("reset-password", username=username)
+    print(f"[green]Password updated:[/green] {username}")
+
+
 def delete_user(
     username: str,
     purge: bool = typer.Option(False, "--purge", help="Delete all files and nginx configs"),

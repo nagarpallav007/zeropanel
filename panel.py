@@ -11,6 +11,7 @@ app = typer.Typer(
 
 # User management
 app.command("create-user")(users.create_user)
+app.command("reset-password")(users.reset_password)
 app.command("delete-user")(users.delete_user)
 app.command("list-users")(users.list_users)
 
