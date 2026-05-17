@@ -20,7 +20,7 @@ Provision users, nginx vhosts, PHP-FPM versions, Let's Encrypt SSL, and MariaDB 
 
 | Stack | Status |
 |---|---|
-| PHP (8.1 – 8.4) via PHP-FPM | ✅ Supported |
+| PHP (8.1 – 8.5) via PHP-FPM | ✅ Supported |
 | Node.js | 🔜 Roadmap |
 | Python (WSGI / ASGI) | 🔜 Roadmap |
 | Go (reverse proxy) | 🔜 Roadmap |
@@ -32,7 +32,7 @@ Provision users, nginx vhosts, PHP-FPM versions, Let's Encrypt SSL, and MariaDB 
 
 - Ubuntu 22.04 / 24.04 (Debian-based)
 - nginx
-- PHP-FPM (any of 8.1, 8.2, 8.3, 8.4)
+- PHP-FPM (any of 8.1, 8.2, 8.3, 8.4, 8.5)
 - certbot with the nginx plugin
 - MariaDB
 - Python 3.10+
@@ -110,6 +110,15 @@ sudo panel logs <domain>                        # tails access log (last 100 lin
 sudo panel logs <domain> --type error --lines 50
 ```
 
+### Optional services
+
+```bash
+sudo panel install-phpmyadmin
+# Prompts for: domain/IP, HTTP auth username, HTTP auth password
+# Installs phpMyAdmin, configures nginx vhost, sets up HTTP basic auth
+# Access at http://<domain> — log in with credentials from panel create-db
+```
+
 ---
 
 ## Directory layout
@@ -143,7 +152,6 @@ nginx configs live in the standard locations:
 - [ ] **Static sites** — zero-PHP nginx config for pure HTML/JS/CSS deployments
 - [ ] **Backup command** — `panel backup-site` to tar + compress to `/srv/clients/{user}/backups/`
 - [ ] **Restore command** — `panel restore-site` from a backup archive
-- [ ] **MySQL import** — `panel import-db` from a `.sql` file
 - [ ] **List SSL expiry** — show cert expiry dates in `list-sites`
 
 ---
