@@ -12,7 +12,8 @@ from utils.shell import run, sudo_write
 _VENV_PIP  = Path("/opt/panel/venv/bin/pip")
 _WEB_EXEC  = Path("/opt/panel/bin/web-exec")
 _WEB_ENV   = Path("/opt/panel/.web.env")
-_WEB_DB    = Path("/opt/panel/webpanel.db")
+_WEB_DATA  = Path("/opt/panel/data")
+_WEB_DB    = Path("/opt/panel/data/webpanel.db")
 _SUDOERS   = Path("/etc/sudoers.d/zeropanel-web")
 _SYSTEMD   = Path("/etc/systemd/system/zeropanel-web.service")
 _NGINX_AVAIL = Path("/etc/nginx/sites-available/zeropanel-web.conf")
@@ -128,6 +129,10 @@ def activate_web(
 
     # ── 6. Init SQLite DB ────────────────────────────────────────────────────
     print("[bold]Step 6/8[/bold] Initialising database…")
+    # SQLite needs write access to the containing directory (WAL/journal files)
+    run(["sudo", "mkdir", "-p", str(_WEB_DATA)])
+    run(["sudo", "chown", "panel-web:panel-web", str(_WEB_DATA)])
+    run(["sudo", "chmod", "750", str(_WEB_DATA)])
     run(["sudo", "touch", str(_WEB_DB)])
     run(["sudo", "chown", "panel-web:panel-web", str(_WEB_DB)])
     run(["sudo", "chmod", "660", str(_WEB_DB)])
